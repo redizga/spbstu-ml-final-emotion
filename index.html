@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Emotion Recognition</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    h1 { margin-bottom: 16px; font-size: 1.4rem; letter-spacing: 0.05em; opacity: 0.85; }
+    #container {
+      position: relative;
+      width: 640px;
+      height: 480px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    #video {
+      width: 640px;
+      height: 480px;
+      object-fit: cover;
+      display: block;
+    }
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 640px;
+      height: 480px;
+      pointer-events: none;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 2rem;
+      font-weight: 600;
+      min-height: 2.5rem;
+      letter-spacing: 0.03em;
+      transition: color 0.3s;
+    }
+    #confidence {
+      margin-top: 6px;
+      font-size: 0.9rem;
+      opacity: 0.55;
+      min-height: 1.2rem;
+    }
+    #offscreen { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Emotion Recognition</h1>
+  <div id="container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay" width="640" height="480"></canvas>
+  </div>
+  <div id="status">Starting camera...</div>
+  <div id="confidence"></div>
+  <canvas id="offscreen" width="640" height="480"></canvas>
+
+  <script>
+    const EMOTION_META = {
+      Angry:    { color: "#FF4444", emoji: "😠" },
+      Disgust:  { color: "#A0845C", emoji: "🤢" },
+      Fear:     { color: "#9B59B6", emoji: "😨" },
+      Happy:    { color: "#2ECC71", emoji: "😊" },
+      Sad:      { color: "#3498DB", emoji: "😢" },
+      Surprise: { color: "#FF8C00", emoji: "😲" },
+      Neutral:  { color: "#95A5A6", emoji: "😐" },
+    };
+
+    const video      = document.getElementById("video");
+    const overlay    = document.getElementById("overlay");
+    const offscreen  = document.getElementById("offscreen");
+    const ctx        = overlay.getContext("2d");
+    const offCtx     = offscreen.getContext("2d");
+    const statusEl   = document.getElementById("status");
+    const confEl     = document.getElementById("confidence");
+
+    let busy = false;
+
+    navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
+      .then(stream => {
+        video.srcObject = stream;
+        statusEl.textContent = "Initializing...";
+        statusEl.style.color = "#fff";
+      })
+      .catch(err => {
+        statusEl.textContent = "Camera error: " + err.message;
+      });
+
+    function sendFrame() {
+      if (busy) return;
+      if (video.readyState < 2) return;
+      busy = true;
+
+      offCtx.drawImage(video, 0, 0, 640, 480);
+      offscreen.toBlob(blob => {
+        fetch("/predict", {
+          method: "POST",
+          body: blob,
+          headers: { "Content-Type": "image/jpeg" },
+        })
+          .then(r => r.json())
+          .then(data => {
+            ctx.clearRect(0, 0, 640, 480);
+
+            if (!data.emotion) {
+              statusEl.textContent = "No face detected";
+              statusEl.style.color = "#888";
+              confEl.textContent = "";
+            } else {
+              const meta  = EMOTION_META[data.emotion] || { color: "#fff", emoji: "❓" };
+              const [x, y, w, h] = data.bbox;
+
+              ctx.strokeStyle = meta.color;
+              ctx.lineWidth   = 3;
+              ctx.strokeRect(x, y, w, h);
+
+              const label = `${meta.emoji} ${data.emotion}`;
+              ctx.font = "bold 22px Segoe UI, sans-serif";
+              const textW = ctx.measureText(label).width + 16;
+              const labelY = y > 34 ? y - 6 : y + h + 28;
+
+              ctx.fillStyle = meta.color;
+              ctx.fillRect(x, labelY - 26, textW, 30);
+              ctx.fillStyle = "#fff";
+              ctx.fillText(label, x + 8, labelY - 4);
+
+              statusEl.textContent = `${meta.emoji} ${data.emotion}`;
+              statusEl.style.color = meta.color;
+              confEl.textContent   = `confidence: ${(data.confidence * 100).toFixed(0)}%`;
+            }
+          })
+          .catch(() => {})
+          .finally(() => { busy = false; });
+      }, "image/jpeg", 0.85);
+    }
+
+    setInterval(sendFrame, 1000);
+  </script>
+</body>
+</html>
