@@ -17,7 +17,7 @@ print("GPUs:", gpus)
 
 IMG_SIZE   = 128
 BATCH_SIZE = 512
-CLASSES    = ["angry", "disgusted", "fearful", "happy", "sad", "surprised", "neutral"]
+CLASSES    = ["angry", "happy", "sad", "surprised", "neutral"]
 DATA_DIR   = "/workspace/data_merged/train"
 VAL_DIR    = "/workspace/data_merged/test"
 OUT_DIR    = "/workspace"
@@ -30,7 +30,7 @@ LR_HEAD         = 1e-3
 
 # Phase 2: fine-tune entire network
 EPOCHS_FINETUNE = 60
-LR_FINETUNE     = 1e-5
+LR_FINETUNE     = 1e-4
 
 
 def load_split(split_dir):
