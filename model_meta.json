@@ -1,0 +1,15 @@
+{
+  "val_accuracy": 0.7886673212051392,
+  "val_loss": 0.9381002187728882,
+  "img_size": 128,
+  "classes": [
+    "angry",
+    "happy",
+    "sad",
+    "surprised",
+    "neutral"
+  ],
+  "epochs_phase1": 10,
+  "epochs_phase2": 54,
+  "architecture": "ResNet50V2 fine-tuned"
+}

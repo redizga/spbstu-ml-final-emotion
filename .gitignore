@@ -1,7 +1,7 @@
-*.h5
-*.json
 data/
 *.zip
 __pycache__/
 .DS_Store
 .ipynb_checkpoints/
+# training artifacts tracked intentionally:
+# emotion_model.h5, model_meta.json, training_history.json

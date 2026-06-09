@@ -4,6 +4,9 @@ import cv2
 from flask import Flask, request, jsonify, send_file
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.applications.resnet_v2 import preprocess_input
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 META_PATH  = os.path.join(BASE_DIR, "model_meta.json")
@@ -11,10 +14,32 @@ MODEL_PATH = os.path.join(BASE_DIR, "emotion_model.h5")
 
 with open(META_PATH) as f:
     meta = json.load(f)
-CLASSES = meta["classes"]
+CLASSES  = meta["classes"]
 IMG_SIZE = meta["img_size"]
 
-model = tf.keras.models.load_model(MODEL_PATH)
+
+def build_inference_model(img_size, num_classes):
+    """Same architecture as train.py but without preprocessing/augmentation layers
+    (they have no weights). preprocess_input is applied manually before predict()."""
+    base = keras.applications.ResNet50V2(
+        include_top=False, weights=None,
+        input_shape=(img_size, img_size, 3), pooling=None,
+    )
+    inp = layers.Input(shape=(img_size, img_size, 3))
+    x = base(inp, training=False)
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dense(512, activation="relu")(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.4)(x)
+    x = layers.Dense(256, activation="relu")(x)
+    x = layers.Dropout(0.3)(x)
+    out = layers.Dense(num_classes, activation="softmax", dtype="float32")(x)
+    return keras.Model(inp, out)
+
+
+model = build_inference_model(IMG_SIZE, len(CLASSES))
+model.load_weights(MODEL_PATH, by_name=True, skip_mismatch=True)
+print(f"Model loaded. Classes: {CLASSES}")
 face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
@@ -50,7 +75,7 @@ def predict():
     roi = frame[y:y + h, x:x + w]
     roi = cv2.resize(roi, (IMG_SIZE, IMG_SIZE))
     roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
-    img = roi.astype("float32") / 255.0
+    img = preprocess_input(roi.astype("float32"))  # [0,255] → ResNet-normalized
     img = np.expand_dims(img, 0)
 
     preds = model.predict(img, verbose=0)[0]
@@ -65,4 +90,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5001, debug=False)
