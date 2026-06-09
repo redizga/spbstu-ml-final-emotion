@@ -21,7 +21,7 @@ CLASSES    = ["angry", "disgusted", "fearful", "happy", "sad", "surprised", "neu
 DATA_DIR   = "/workspace/data_merged/train"
 VAL_DIR    = "/workspace/data_merged/test"
 OUT_DIR    = "/workspace"
-BEST_W       = f"{OUT_DIR}/emotion_model_weights.h5"
+BEST_W       = f"{OUT_DIR}/emotion_model.weights.h5"
 FINAL_MODEL  = f"{OUT_DIR}/emotion_model.h5"
 
 # Phase 1: train head only (base frozen)
