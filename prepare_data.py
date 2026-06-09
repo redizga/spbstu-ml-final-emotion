@@ -81,45 +81,54 @@ def download_raf():
     return ret == 0
 
 
-def find_raf_label_file():
-    for pattern in [
-        f"{RAF_DIR}/**/list_patition_label.txt",
-        f"{RAF_DIR}/**/*label*.txt",
-    ]:
-        matches = glob.glob(pattern, recursive=True)
-        if matches:
-            return matches[0]
-    return None
-
-
 def copy_raf():
+    """
+    Supports two layouts:
+    1. DATASET/train/{1-7}/*.jpg  (folder = label index)
+    2. label file + aligned/ dir  (legacy RAF-DB)
+    """
     print("\n[RAF-DB] Parsing and copying...")
 
-    label_file = find_raf_label_file()
-    if label_file is None:
-        print("  ERROR: Could not find RAF-DB label file. Skipping RAF-DB.")
-        print(f"  Files found in {RAF_DIR}:")
-        for f in glob.glob(f"{RAF_DIR}/**/*", recursive=True)[:20]:
-            print(f"    {f}")
+    # Layout 1: images already split into numbered folders
+    numbered = glob.glob(f"{RAF_DIR}/**/train/1", recursive=True)
+    if numbered:
+        base = os.path.dirname(numbered[0])   # .../DATASET/train
+        parent = os.path.dirname(base)         # .../DATASET
+        counts = {cls: 0 for cls in CLASSES}
+        for split_folder, dst_root in [("train", OUT_TRAIN), ("test", OUT_TEST)]:
+            split_dir = f"{parent}/{split_folder}"
+            for num_str, cls in RAF_LABEL_MAP.items():
+                src_dir = f"{split_dir}/{num_str}"
+                if not os.path.isdir(src_dir):
+                    continue
+                files = glob.glob(f"{src_dir}/*.jpg") + glob.glob(f"{src_dir}/*.png")
+                for p in files:
+                    dst = f"{dst_root}/{cls}/raf_{Path(p).name}"
+                    shutil.copy2(p, dst)
+                    counts[cls] += 1
+        print(f"  Copied: {sum(counts.values())} images  {counts}")
         return
 
-    print(f"  Label file: {label_file}")
-    label_dir = os.path.dirname(label_file)
+    # Layout 2: label file + aligned dir
+    label_candidates = (
+        glob.glob(f"{RAF_DIR}/**/list_patition_label.txt", recursive=True)
+        + glob.glob(f"{RAF_DIR}/**/*label*.txt", recursive=True)
+    )
+    if not label_candidates:
+        print("  ERROR: Unknown RAF-DB layout. Skipping.")
+        return
 
-    # Find image directory (aligned or original)
+    label_file = label_candidates[0]
+    print(f"  Label file: {label_file}")
     img_dirs = (
         glob.glob(f"{RAF_DIR}/**/aligned", recursive=True)
-        or glob.glob(f"{RAF_DIR}/**/Image/aligned", recursive=True)
-        or [label_dir]
+        or [os.path.dirname(label_file)]
     )
     img_dir = img_dirs[0]
-    print(f"  Image dir: {img_dir}")
 
-    entries = open(label_file).read().strip().splitlines()
     counts = {cls: 0 for cls in CLASSES}
     skipped = 0
-
-    for line in entries:
+    for line in open(label_file).read().strip().splitlines():
         parts = line.strip().split()
         if len(parts) < 2:
             continue
@@ -128,8 +137,6 @@ def copy_raf():
         if cls is None:
             skipped += 1
             continue
-
-        # RAF-DB label file uses original names, aligned files have _aligned suffix
         stem = Path(fname).stem
         candidates = (
             glob.glob(f"{img_dir}/{stem}_aligned.jpg")
@@ -139,12 +146,10 @@ def copy_raf():
         if not candidates:
             skipped += 1
             continue
-
         src = candidates[0]
         split = "train" if fname.startswith("train") else "test"
         dst_dir = OUT_TRAIN if split == "train" else OUT_TEST
-        dst = f"{dst_dir}/{cls}/raf_{Path(src).name}"
-        shutil.copy2(src, dst)
+        shutil.copy2(src, f"{dst_dir}/{cls}/raf_{Path(src).name}")
         counts[cls] += 1
 
     print(f"  Copied: {sum(counts.values())} images  {counts}")

@@ -21,7 +21,8 @@ CLASSES    = ["angry", "disgusted", "fearful", "happy", "sad", "surprised", "neu
 DATA_DIR   = "/workspace/data_merged/train"
 VAL_DIR    = "/workspace/data_merged/test"
 OUT_DIR    = "/workspace"
-BEST_W     = f"{OUT_DIR}/emotion_model.h5"
+BEST_W       = f"{OUT_DIR}/emotion_model_weights.h5"
+FINAL_MODEL  = f"{OUT_DIR}/emotion_model.h5"
 
 # Phase 1: train head only (base frozen)
 EPOCHS_HEAD     = 10
@@ -65,8 +66,6 @@ def build_model():
     x = layers.RandomFlip("horizontal")(inp)
     x = layers.RandomRotation(0.10)(x)
     x = layers.RandomZoom(0.10)(x)
-    x = layers.RandomBrightness(0.10)(x)
-    x = layers.RandomContrast(0.10)(x)
 
     # ResNet50V2 expects inputs in [-1, 1]
     x = keras.applications.resnet_v2.preprocess_input(x * 255.0)
@@ -133,7 +132,7 @@ callbacks = [
     keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=5,
                                       min_lr=1e-7, verbose=1),
     keras.callbacks.ModelCheckpoint(BEST_W, monitor="val_accuracy",
-                                    save_best_only=True, verbose=1),
+                                    save_best_only=True, save_weights_only=True, verbose=1),
 ]
 
 history2 = model.fit(
@@ -147,6 +146,8 @@ history2 = model.fit(
 
 model.load_weights(BEST_W)
 print("Loaded best weights from checkpoint.")
+model.save(FINAL_MODEL)
+print(f"Saved full model to {FINAL_MODEL}")
 
 # Merge histories
 full_history = {}
