@@ -17,7 +17,7 @@ print("GPUs:", gpus)
 
 IMG_SIZE   = 48
 BATCH_SIZE = 512
-CLASSES    = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
+CLASSES    = ["angry", "disgusted", "fearful", "happy", "sad", "surprised", "neutral"]
 DATA_DIR   = "/workspace/data/train"
 VAL_DIR    = "/workspace/data/test"
 OUT_DIR    = "/workspace"
